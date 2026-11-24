@@ -27,6 +27,11 @@ let chunliMediumKickFrames = []; // 儲存 Chun-Li 中踢動畫的圖片影格
 let chunliHeavyKickFrames = []; // 儲存 Chun-Li 重踢動畫的圖片影格
 let chunliKikokenFrames = []; // 儲存 Chun-Li 氣功拳動畫的圖片影格
 let chunliLightningLegFrames = []; // 儲存 Chun-Li 百裂腳動畫的圖片影格
+let guileStopFrames = []; // 儲存 Guile 站立待機動畫的圖片影格
+let guileWalkFrames = []; // 儲存 Guile 行走動畫的圖片影格
+let guileJumpFrames = []; // 儲存 Guile 跳躍動畫的圖片影格（答對時的慶祝動作）
+let guileMagicFrames = []; // 儲存 Guile 音速手刀施法動畫的圖片影格（答錯時的反擊動作）
+let guileMagicEffectFrames = []; // 儲存 Guile 音速手刀氣功波特效影格
 let effectSpriteSheet; // 儲存 Effect 資料夾中的閃電與藍色爆炸特效精靈圖
 let lightningEffectFrames = []; // 儲存由精靈圖切出的由上往下閃電特效影格
 let blueExplosionFrames = []; // 儲存由精靈圖切出的底部藍色爆炸特效影格
@@ -90,6 +95,47 @@ const spriteScale = 3.5; // 設定 Ryu 像素角色的放大倍率
 const chunliScale = 1.85; // 設定 Chun-Li 角色的放大倍率
 const shoryukenHeight = 100 * spriteScale; // 設定升龍拳向上移動的高度
 const senfukyakuDistance = 300; // 設定旋風腿向前移動的距離
+const guileQuizQuestions = [ // 定義 Guile 提問事件使用的選擇題題庫
+  {
+    question: "Guile 的招牌氣功必殺技名稱是什麼？",
+    options: ["波動拳 (Hadouken)", "音速手刀 (Sonic Boom)", "氣功拳 (Kikoken)", "升龍拳 (Shoryuken)"],
+    correctIndex: 1
+  },
+  {
+    question: "在本遊戲中，按哪一個按鍵可以讓角色跳躍？",
+    options: ["W 鍵", "S 鍵", "J 鍵", "U 鍵"],
+    correctIndex: 0
+  },
+  {
+    question: "Chun-Li 連按兩次同方向鍵會觸發什麼動作？",
+    options: ["百裂腳", "旋風腿", "衝刺奔跑", "升龍拳"],
+    correctIndex: 2
+  },
+  {
+    question: "Ryu 向前旋轉踢擊的必殺技名稱是哪一招？",
+    options: ["音速手刀", "旋風腿 (Senfukyaku)", "氣功拳", "百裂腳"],
+    correctIndex: 1
+  },
+  {
+    question: "在本遊戲中，要如何切換操控 Ryu 與 Chun-Li？",
+    options: ["按下空白鍵", "連按 S 鍵兩次", "點擊畫面上方的角色頭像", "走到畫面最左端"],
+    correctIndex: 2
+  }
+]; // 完成 Guile 選擇題題庫
+let guileState = "idle"; // 記錄 Guile 目前狀態（"idle"、"question"、"correct"、"wrong"）
+let guileFacing = -1; // 記錄 Guile 目前面向的方向（1 朝右，-1 朝左）
+let guileAnimFrame = 0; // 記錄 Guile 目前播放的動畫影格
+let guileAnimTimer = 0; // 累計 Guile 動畫切換時間
+let guileReactionTimer = 0; // 記錄答題後反應動作已播放的毫秒數
+let guileWaitingForLeave = false; // 避免答題結束後站在原地重複觸發提問
+let guileQuestionIndex = 0; // 記錄目前出題的題庫索引
+let guileFeedbackMessage = ""; // 記錄答題後的回饋訊息文字
+let guileLastResultCorrect = false; // 記錄最近一次答題是否正確
+let guileProjectiles = []; // 儲存 Guile 答錯時發射的音速手刀氣功波
+let guileHasFiredSonicBoom = false; // 記錄本次答錯反應是否已發射音速手刀
+let guileOptionRects = []; // 儲存目前選擇題各選項按鈕的畫面座標供滑鼠點擊判斷
+const guileCorrectDuration = 2000; // 設定答對時跳躍慶祝動作的持續毫秒數
+const guileWrongDuration = 2000; // 設定答錯時發射音速手刀反應的持續毫秒數
 
 function loadSequence(folderPath, prefix, startIndex, endIndex, padLength) { // 依序載入連續編號圖片的輔助函式
   const frames = []; // 建立儲存影格的陣列
@@ -140,6 +186,11 @@ function preload() { // 在程式啟動前載入所有角色與背景圖片
     ...loadSequence("Chunli Animation/37_lightning_legs_1", "frame_", 1, 7, 2), // 載入百裂腳前段連續踢擊影格
     ...loadSequence("Chunli Animation/38_lightning_legs_2", "frame_", 1, 6, 2) // 載入百裂腳後段連續踢擊影格
   ]; // 完成 Chun-Li 百裂腳動畫清單
+  guileStopFrames = loadSequence("Gulie Animation/stop", "", 0, 9, 0); // 載入 Guile 站立待機動畫影格
+  guileWalkFrames = loadSequence("Gulie Animation/walk", "", 0, 8, 0); // 載入 Guile 行走動畫影格
+  guileJumpFrames = loadSequence("Gulie Animation/jump", "", 0, 7, 0); // 載入 Guile 跳躍動畫影格
+  guileMagicFrames = loadSequence("Gulie Animation/magic", "", 0, 3, 0); // 載入 Guile 音速手刀施法動畫影格
+  guileMagicEffectFrames = loadSequence("Gulie Animation/magic_effect", "", 0, 4, 0); // 載入 Guile 音速手刀特效影格
   backgroundImage = loadImage("Background/Church.jpg"); // 載入教堂背景圖片
   effectSpriteSheet = loadImage("Effect/Free-Animated-Explosion-Sprite5.jpg"); // 載入閃電與藍色爆炸特效圖片
 } // 結束圖片載入設定
@@ -265,7 +316,301 @@ function drawCharacterSelector() { // 在畫面上方繪製角色頭像切換列
   pop(); // 還原繪圖狀態
 } // 結束角色頭像切換列繪製函式
 
-function mousePressed() { // 偵測滑鼠點擊以切換上方角色頭像
+function getGuileScale() { // 依畫布高度的 1/3 計算 Guile 的縮放倍率
+  return (height / 3) / guileStopFrames[0].height; // 讓 Guile 站立高度與操控角色一致
+} // 結束 Guile 縮放倍率函式
+
+function getGuileScreenX() { // 取得 Guile 隨背景捲動後的畫面水平座標
+  const guileWorldOffsetX = Math.min(360, width * 0.34); // 將 Guile 放在起始畫面右側方便玩家靠近觸發
+  return width / 2 + backgroundX + guileWorldOffsetX; // 讓 Guile 固定於場景背景上隨卷軸移動
+} // 結束 Guile 座標計算函式
+
+function playQuizFeedbackSound(isCorrect) { // 依答對或答錯使用 Web Audio 播放對應提示音效
+  const audioCtx = typeof getAudioContext === "function" ? getAudioContext() : (window.AudioContext || window.webkitAudioContext ? new (window.AudioContext || window.webkitAudioContext)() : null); // 取得瀏覽器音效環境
+  if (!audioCtx) return; // 若環境不支援音效則返回
+  if (audioCtx.state === "suspended") { // 若音效尚未解鎖則喚醒
+    audioCtx.resume(); // 恢復音效播放狀態
+  } // 結束音效喚醒
+  const now = audioCtx.currentTime; // 取得目前音訊時間
+  const notes = isCorrect ? [523.25, 659.25, 783.99] : [260, 175]; // 答對播放上行和弦，答錯播放低沉警示音
+  notes.forEach((freq, idx) => { // 依序排程每個音符
+    const osc = audioCtx.createOscillator(); // 建立振盪器
+    const gain = audioCtx.createGain(); // 建立音量節點
+    osc.type = isCorrect ? "triangle" : "sawtooth"; // 答對使用清亮三角波，答錯使用鋸齒波
+    const startTime = now + idx * (isCorrect ? 0.09 : 0.14); // 計算音符起始時間
+    const noteDuration = isCorrect ? 0.18 : 0.24; // 計算音符持續時間
+    osc.frequency.setValueAtTime(freq, startTime); // 設定音高頻率
+    gain.gain.setValueAtTime(0.001, startTime); // 初始微弱音量避免爆音
+    gain.gain.linearRampToValueAtTime(isCorrect ? 0.16 : 0.14, startTime + 0.02); // 快速淡入
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + noteDuration); // 平滑淡出
+    osc.connect(gain); // 連接振盪器與音量節點
+    gain.connect(audioCtx.destination); // 輸出至喇叭
+    osc.start(startTime); // 開始發聲
+    osc.stop(startTime + noteDuration + 0.02); // 結束發聲
+  }); // 結束音符排程
+} // 結束答題提示音效函式
+
+function submitGuileAnswer(optionIndex) { // 處理玩家選擇的選項並切換 Guile 反應動作
+  if (guileState !== "question") return; // 僅在提問視窗開啟時接受作答
+  const currentQuiz = guileQuizQuestions[guileQuestionIndex % guileQuizQuestions.length]; // 取得目前題目資料
+  if (optionIndex < 0 || optionIndex >= currentQuiz.options.length) return; // 防呆檢查選項索引範圍
+  const isCorrect = optionIndex === currentQuiz.correctIndex; // 判斷玩家是否答對
+  guileLastResultCorrect = isCorrect; // 記錄本次作答結果
+  guileState = isCorrect ? "correct" : "wrong"; // 切換為答對慶祝或答錯反擊狀態
+  guileAnimFrame = 0; // 重設 Guile 反應動作影格
+  guileAnimTimer = 0; // 重設 Guile 動畫計時器
+  guileReactionTimer = 0; // 重設反應持續計時器
+  guileHasFiredSonicBoom = false; // 重設音速手刀發射旗標
+  guileOptionRects = []; // 清空選項點擊區域
+  if (isCorrect) { // 設定答對時的回饋文字
+    guileFeedbackMessage = "答對了！Guile 開心跳躍為你喝采！"; // 答對提示訊息
+  } else { // 設定答錯時的回饋文字與正確解答
+    const answerText = currentQuiz.options[currentQuiz.correctIndex]; // 取得正確選項文字
+    guileFeedbackMessage = `答錯了！吃我一記音速手刀！（正確答案：${answerText}）`; // 答錯提示訊息
+  } // 結束回饋訊息設定
+  playQuizFeedbackSound(isCorrect); // 播放對應的答對或答錯音效
+  guileQuestionIndex = (guileQuestionIndex + 1) % guileQuizQuestions.length; // 切換至下一題供下次靠近提問使用
+} // 結束作答處理函式
+
+function updateAndDrawGuile(actualBgScroll) { // 更新 Guile 靠近觸發、動畫狀態與繪製 Guile 及氣功波
+  const guileX = getGuileScreenX(); // 取得 Guile 目前畫面水平座標
+  const guileScale = getGuileScale(); // 取得 Guile 顯示縮放倍率
+  const horizontalDistance = Math.abs(playerX - guileX); // 計算操控角色與 Guile 的水平距離
+  const triggerDistance = Math.max(150, height * 0.22); // 設定靠近觸發提問的距離門檻
+  const resetDistance = triggerDistance + 90; // 設定離開後解除冷卻的距離門檻
+  guileFacing = playerX >= guileX ? 1 : -1; // 讓 Guile 隨時面向操控角色
+  if (guileState === "idle") { // 當 Guile 處於待機狀態時檢查玩家是否靠近或離開
+    if (guileWaitingForLeave && horizontalDistance > resetDistance) { // 玩家離開一段距離後重置觸發狀態
+      guileWaitingForLeave = false; // 允許下次靠近時再次觸發提問
+    } else if (!guileWaitingForLeave && horizontalDistance <= triggerDistance) { // 玩家靠近到範圍內時觸發提問事件
+      guileState = "question"; // 進入選擇題問答狀態
+      guileWaitingForLeave = true; // 標記本次靠近已觸發，答完需先離開再靠近才出下一題
+      guileAnimFrame = 0; // 重設 Guile 影格
+      guileAnimTimer = 0; // 重設 Guile 計時器
+      isWalking = false; // 停下角色移動狀態
+      isDashing = false; // 停止衝刺狀態
+    } // 結束靠近觸發檢查
+  } // 結束待機觸發檢查
+  let guileJumpLift = 0; // 記錄 Guile 跳躍反應時的垂直抬升高度
+  let guileImage = guileStopFrames[0]; // 預設使用站立影格
+  if (guileState === "correct") { // 答對時播放兩次開心的跳躍慶祝動作（jump 動畫 + 拋物線起跳）
+    guileReactionTimer += deltaTime; // 累計反應經過時間
+    const hopCount = 2; // 設定連續跳躍慶祝次數
+    const singleHopDuration = guileCorrectDuration / hopCount; // 計算單次跳躍時間
+    const hopProgress = constrain((guileReactionTimer % singleHopDuration) / singleHopDuration, 0, 1); // 計算單次跳躍進度
+    guileJumpLift = Math.sin(hopProgress * Math.PI) * (height * 0.16); // 計算平滑跳躍上升高度
+    const jumpFrameIdx = Math.min(guileJumpFrames.length - 1, Math.floor(hopProgress * guileJumpFrames.length)); // 依進度選擇對應跳躍影格
+    guileImage = guileJumpFrames[jumpFrameIdx]; // 取得跳躍動作圖片
+    if (guileReactionTimer >= guileCorrectDuration) { // 慶祝動作結束後恢復待機
+      guileState = "idle"; // 回復待機狀態
+      guileAnimFrame = 0; // 重設影格
+      guileAnimTimer = 0; // 重設計時器
+    } // 結束答對動作完成檢查
+  } else if (guileState === "wrong") { // 答錯時播放音速手刀施法動作（magic）並朝玩家發射氣功波（magic_effect）
+    guileReactionTimer += deltaTime; // 累計反應經過時間
+    guileAnimTimer += deltaTime; // 累計施法影格計時
+    const magicFrameDuration = 115; // 設定音速手刀施法每格播放時間
+    while (guileAnimTimer >= magicFrameDuration) { // 推進施法影格
+      guileAnimTimer -= magicFrameDuration; // 扣除單格時間
+      if (guileAnimFrame < guileMagicFrames.length - 1) { // 播放至最後一張出招姿勢後保持收招
+        guileAnimFrame += 1; // 前進至下一張施法影格
+      } // 結束影格上限判斷
+    } // 結束施法影格更新
+    if (!guileHasFiredSonicBoom && guileAnimFrame >= 2) { // 在出招影格發射音速手刀氣功波
+      guileHasFiredSonicBoom = true; // 標記本次已發射
+      guileProjectiles.push({ // 新增一發音速手刀氣功波
+        x: guileX + guileFacing * (height / 3) * 0.42, // 自 Guile 手部前方生成
+        y: floorY - (height / 3) * 0.56, // 設定氣功波飛行高度
+        direction: guileFacing, // 朝向操控角色方向飛行
+        speed: 580, // 設定音速手刀飛行速度
+        frame: 0, // 從第 1 張特效影格開始
+        timer: 0 // 重設特效動畫計時
+      }); // 完成音速手刀建立
+    } // 結束發射時機判斷
+    guileImage = guileMagicFrames[Math.min(guileAnimFrame, guileMagicFrames.length - 1)]; // 取得目前施法動作圖片
+    if (guileReactionTimer >= guileWrongDuration) { // 反擊反應時間結束後恢復待機
+      guileState = "idle"; // 回復待機狀態
+      guileAnimFrame = 0; // 重設影格
+      guileAnimTimer = 0; // 重設計時器
+    } // 結束答錯動作完成檢查
+  } else { // 待機或提問期間循環播放 Guile 站立待機動畫（stop）
+    guileAnimTimer += deltaTime; // 累計待機影格時間
+    while (guileAnimTimer >= 120) { // 每 120 毫秒切換一張待機影格
+      guileAnimTimer -= 120; // 扣除單格時間
+      guileAnimFrame = (guileAnimFrame + 1) % guileStopFrames.length; // 循環待機影格
+    } // 結束待機影格更新
+    guileImage = guileStopFrames[guileAnimFrame]; // 取得待機影格圖片
+  } // 結束 Guile 動作影格分支
+  push(); // 暫存繪圖狀態以繪製 Guile
+  const guileDrawH = guileImage.height * guileScale; // 計算 Guile 顯示高度
+  const guileDrawW = guileImage.width * guileScale; // 計算 Guile 顯示寬度
+  const guileFootY = floorY - guileDrawH / 2 - guileJumpLift; // 讓 Guile 雙腳貼齊地板並套用跳躍抬升
+  translate(guileX, guileFootY); // 移至 Guile 繪製中心
+  scale(guileFacing, 1); // Guile 素材原生朝右，依面向決定是否水平翻轉
+  image(guileImage, 0, 0, guileDrawW, guileDrawH); // 繪製 Guile 目前動作影格
+  pop(); // 還原繪圖狀態
+  if (guileState === "correct") { // 答對跳躍時在 Guile 周圍繪製慶祝金色星芒
+    push(); // 暫存繪圖狀態
+    noStroke(); // 移除星芒外框
+    for (let i = 0; i < 6; i += 1) { // 繪製 6 顆環繞星光
+      const angle = (guileReactionTimer * 0.004) + (i * TWO_PI) / 6; // 計算旋轉角度
+      const radiusX = guileDrawW * 0.55; // 水平環繞半徑
+      const radiusY = guileDrawH * 0.42; // 垂直環繞半徑
+      const starX = guileX + Math.cos(angle) * radiusX; // 星光 X 座標
+      const starY = guileFootY - guileDrawH * 0.1 + Math.sin(angle) * radiusY; // 星光 Y 座標
+      fill(255, 224, 102, 220); // 金黃色光點
+      circle(starX, starY, 10 + Math.sin(guileReactionTimer * 0.015 + i) * 4); // 繪製閃爍光點
+    } // 結束星光繪製
+    pop(); // 還原繪圖狀態
+  } // 結束答對星芒特效
+  for (const boom of guileProjectiles) { // 更新所有飛行中的 Guile 音速手刀氣功波
+    boom.x += boom.direction * boom.speed * (deltaTime / 1000) - actualBgScroll; // 推進氣功波並同步背景卷軸
+    boom.timer += deltaTime; // 累計氣功波影格時間
+    while (boom.timer >= 65) { // 每 65 毫秒切換一張特效影格
+      boom.timer -= 65; // 扣除單格時間
+      boom.frame = (boom.frame + 1) % guileMagicEffectFrames.length; // 循環播放氣功波影格
+    } // 結束氣功波影格更新
+  } // 結束氣功波位置更新
+  guileProjectiles = guileProjectiles.filter((boom) => boom.x > -240 && boom.x < width + 240); // 移除飛出畫面的音速手刀
+  for (const boom of guileProjectiles) { // 繪製所有飛行中的音速手刀氣功波
+    push(); // 暫存繪圖狀態
+    translate(boom.x, boom.y); // 移至氣功波座標
+    scale(boom.direction, 1); // 依飛行方向翻轉氣功波貼圖
+    const boomImg = guileMagicEffectFrames[boom.frame]; // 取得目前特效影格
+    const boomScale = guileScale * 1.35; // 放大音速手刀特效提升視覺張力
+    image(boomImg, 0, 0, boomImg.width * boomScale, boomImg.height * boomScale); // 繪製音速手刀特效
+    pop(); // 還原繪圖狀態
+  } // 結束音速手刀繪製
+  if (guileX > -120 && guileX < width + 120) { // 當 Guile 位於畫面內時在頭頂顯示提示標籤或氣泡
+    push(); // 暫存繪圖狀態
+    rectMode(CENTER); // 矩形置中對齊
+    textAlign(CENTER, CENTER); // 文字置中對齊
+    const badgeY = floorY - getStandingHeight() - 34 - guileJumpLift; // 計算頭頂提示框垂直座標
+    if (guileState === "idle") { // 待機時顯示靠近提問提示
+      const promptText = guileWaitingForLeave ? "離開後再靠近可挑戰下一題" : "GUILE：靠近回答問題！"; // 依冷卻狀態切換提示文字
+      const badgeW = promptText.length * 14 + 28; // 依文字長度計算提示框寬度
+      stroke("#ffd166"); // 金色邊框
+      strokeWeight(2); // 邊框粗細
+      fill("rgba(20, 24, 38, 0.82)"); // 深色半透明底色
+      rect(guileX, badgeY, badgeW, 32, 10); // 繪製提示框
+      noStroke(); // 移除文字外框
+      fill("#ffd166"); // 金黃色文字
+      textSize(13); // 設定字體大小
+      textStyle(BOLD); // 粗體顯示
+      text(promptText, guileX, badgeY); // 繪製提示文字
+    } else if (guileState === "correct" || guileState === "wrong") { // 反應期間在頭頂顯示簡短對話氣泡
+      const bubbleText = guileState === "correct" ? "NICE! 答對了！" : "SONIC BOOM! 答錯囉！"; // 依結果設定台詞
+      const bubbleW = 190; // 對話氣泡寬度
+      stroke(guileState === "correct" ? "#52b788" : "#ff6b6b"); // 答對綠框、答錯紅框
+      strokeWeight(2.5); // 邊框粗細
+      fill("rgba(18, 22, 34, 0.9)"); // 深色半透明底色
+      rect(guileX, badgeY, bubbleW, 34, 12); // 繪製對話氣泡
+      noStroke(); // 移除文字外框
+      fill(guileState === "correct" ? "#95d5b2" : "#ffadad"); // 依結果設定文字顏色
+      textSize(14); // 設定字體大小
+      textStyle(BOLD); // 粗體顯示
+      text(bubbleText, guileX, badgeY); // 繪製氣泡台詞
+    } // 結束頭頂標籤狀態分支
+    pop(); // 還原繪圖狀態
+  } // 結束頭頂提示標籤繪製
+} // 結束 Guile 更新與繪製函式
+
+function drawGuileQuizUI() { // 繪製 Guile 選擇題視窗或答題結果橫幅
+  if (guileState === "question") { // 提問狀態時繪製置中的選擇題面板
+    const currentQuiz = guileQuizQuestions[guileQuestionIndex % guileQuizQuestions.length]; // 取得目前選擇題
+    const panelW = Math.min(620, width - 48); // 計算面板寬度並兼顧小視窗
+    const panelH = Math.min(390, height - 150); // 計算面板高度避免遮蓋上方頭像列
+    const panelX = width / 2; // 面板水平中心
+    const panelY = Math.max(height * 0.54, 125 + panelH / 2); // 面板垂直中心位於角色頭像列下方
+    push(); // 暫存繪圖狀態
+    rectMode(CENTER); // 矩形置中對齊
+    noStroke(); // 無外框
+    fill("rgba(10, 12, 22, 0.52)"); // 輕微壓暗背景聚焦於題目
+    rect(width / 2, height / 2, width, height); // 繪製全畫面半透明遮罩
+    stroke("#ffd166"); // 面板金色外框
+    strokeWeight(3); // 外框線寬
+    fill("rgba(22, 26, 44, 0.94)"); // 深藍紫半透明面板底色
+    rect(panelX, panelY, panelW, panelH, 16); // 繪製主問答視窗
+    const topY = panelY - panelH / 2; // 計算面板上緣座標
+    const headerY = topY + 40; // 標題區垂直座標
+    image(guileStopFrames[0], panelX - panelW / 2 + 46, headerY + 4, 46, 46, 0, 0, guileStopFrames[0].width, 92); // 繪製 Guile 頭像縮圖
+    noStroke(); // 移除文字外框
+    textAlign(LEFT, CENTER); // 標題靠左對齊
+    fill("#ffd166"); // 金色標題文字
+    textSize(18); // 設定標題字級
+    textStyle(BOLD); // 粗體標題
+    text(`GUILE 的選擇題挑戰 (${(guileQuestionIndex % guileQuizQuestions.length) + 1}/${guileQuizQuestions.length})`, panelX - panelW / 2 + 80, headerY); // 繪製視窗標題
+    textAlign(CENTER, CENTER); // 題目置中對齊
+    fill("#ffffff"); // 白色題目文字
+    textSize(Math.min(20, panelW * 0.036)); // 依面板寬度調整題目字級
+    textStyle(BOLD); // 粗體題目
+    text(currentQuiz.question, panelX, topY + 94, panelW - 48, 60); // 繪製題目內容（自動換行）
+    guileOptionRects = []; // 重建本畫格的選項點擊矩形陣列
+    const optionW = panelW - 56; // 選項按鈕寬度
+    const optionH = Math.min(46, (panelH - 180) / currentQuiz.options.length - 8); // 依面板空間計算單個選項高度
+    const firstOptionY = topY + 146; // 第一個選項的垂直中心
+    const optionStep = optionH + 10; // 相鄰選項間距
+    for (let i = 0; i < currentQuiz.options.length; i += 1) { // 逐一繪製 4 個選擇題選項
+      const optY = firstOptionY + i * optionStep; // 計算目前選項中心 Y
+      const isHovered = Math.abs(mouseX - panelX) <= optionW / 2 && Math.abs(mouseY - optY) <= optionH / 2; // 偵測滑鼠懸停狀態
+      guileOptionRects.push({ x: panelX, y: optY, w: optionW, h: optionH, index: i }); // 記錄選項點擊範圍
+      stroke(isHovered ? "#ffd166" : "rgba(168, 218, 220, 0.55)"); // 懸停時亮金框
+      strokeWeight(isHovered ? 3 : 1.5); // 懸停時加粗外框
+      fill(isHovered ? "rgba(68, 56, 118, 0.95)" : "rgba(34, 40, 66, 0.88)"); // 懸停時提亮底色
+      rect(panelX, optY, optionW, optionH, 10); // 繪製選項按鈕
+      noStroke(); // 移除文字外框
+      textAlign(LEFT, CENTER); // 選項文字靠左顯示
+      fill(isHovered ? "#ffd166" : "#f1faee"); // 選項文字顏色
+      textSize(16); // 設定選項字級
+      textStyle(isHovered ? BOLD : NORMAL); // 懸停時改為粗體
+      text(`${i + 1}.  ${currentQuiz.options[i]}`, panelX - optionW / 2 + 20, optY); // 繪製選項編號與文字
+    } // 結束選項繪製迴圈
+    noStroke(); // 移除提示文字外框
+    textAlign(CENTER, CENTER); // 底部操作提示置中
+    fill("#a8dadc"); // 淺青色提示文字
+    textSize(13); // 設定提示字級
+    textStyle(NORMAL); // 一般字重
+    text("點擊選項或按鍵盤數字鍵 1 ~ 4 作答", panelX, panelY + panelH / 2 - 22); // 繪製操作說明
+    pop(); // 還原繪圖狀態
+  } else if ((guileState === "correct" || guileState === "wrong") && guileFeedbackMessage !== "") { // 反應動作期間在上方顯示不遮擋角色的結果橫幅
+    push(); // 暫存繪圖狀態
+    rectMode(CENTER); // 矩形置中對齊
+    textAlign(CENTER, CENTER); // 文字置中對齊
+    const bannerW = Math.min(640, width - 40); // 結果橫幅寬度
+    const bannerH = 48; // 結果橫幅高度
+    const bannerY = 128; // 置於角色切換頭像列正下方
+    stroke(guileLastResultCorrect ? "#52b788" : "#ff6b6b"); // 答對為綠色、答錯為紅色邊框
+    strokeWeight(3); // 外框寬度
+    fill(guileLastResultCorrect ? "rgba(20, 66, 44, 0.9)" : "rgba(78, 22, 28, 0.9)"); // 對應結果底色
+    rect(width / 2, bannerY, bannerW, bannerH, 12); // 繪製結果橫幅
+    noStroke(); // 移除文字外框
+    fill("#ffffff"); // 白色結果文字
+    textSize(16); // 設定文字大小
+    textStyle(BOLD); // 粗體顯示
+    text(guileFeedbackMessage, width / 2, bannerY); // 繪製答題結果與正確答案提示
+    pop(); // 還原繪圖狀態
+  } // 結束答題結果橫幅判斷
+} // 結束 Guile 問答 UI 繪製函式
+
+function keyPressed() { // 偵測鍵盤數字鍵 1~4 快速回答 Guile 選擇題
+  if (guileState === "question") { // 僅在選擇題開啟時攔截 1~4 作答
+    if (key === "1") submitGuileAnswer(0); // 按下 1 選擇第 1 個選項
+    else if (key === "2") submitGuileAnswer(1); // 按下 2 選擇第 2 個選項
+    else if (key === "3") submitGuileAnswer(2); // 按下 3 選擇第 3 個選項
+    else if (key === "4") submitGuileAnswer(3); // 按下 4 選擇第 4 個選項
+  } // 結束選擇題按鍵判斷
+} // 結束鍵盤按下事件
+
+function mousePressed() { // 偵測滑鼠點擊以回答選擇題或切換上方角色頭像
+  if (guileState === "question") { // 選擇題開啟時優先處理選項按鈕點擊
+    for (const optionRect of guileOptionRects) { // 逐一檢查每個選項的點擊範圍
+      if (Math.abs(mouseX - optionRect.x) <= optionRect.w / 2 && Math.abs(mouseY - optionRect.y) <= optionRect.h / 2) { // 若滑鼠落在選項按鈕內
+        submitGuileAnswer(optionRect.index); // 送出該選項並觸發對應動作反應
+        return; // 處理完成直接返回
+      } // 結束單一選項碰撞判斷
+    } // 結束選項點擊迴圈
+    return; // 提問視窗開啟時避免誤觸背景角色切換
+  } // 結束選擇題點擊攔截
   const boxWidth = 130; // 頭像框寬度
   const boxHeight = 86; // 頭像框高度
   const gap = 24; // 頭像框間距
@@ -412,23 +757,24 @@ function draw() { // 每個畫格更新角色並繪製畫面
   backgroundX = constrain(backgroundX, -maxBgOffset, maxBgOffset); // 限制背景卷軸在最左端與最右端之間滾動
   image(backgroundImage, width / 2 + backgroundX, bgY, bgWidth, bgHeight); // 繪製放大後的卷軸教堂背景
   let direction = 0; // 預設本畫格角色沒有水平移動
-  if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) { // 檢查是否按下左方向鍵或 A 鍵
+  const isQuizOpen = guileState === "question"; // 判斷目前是否正在顯示 Guile 選擇題視窗
+  if (!isQuizOpen && (keyIsDown(LEFT_ARROW) || keyIsDown(65))) { // 檢查是否按下左方向鍵或 A 鍵（答題中暫停移動）
     direction -= 1; // 設定角色向左移動
   } // 結束左移輸入判斷
-  if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) { // 檢查是否按下右方向鍵或 D 鍵
+  if (!isQuizOpen && (keyIsDown(RIGHT_ARROW) || keyIsDown(68))) { // 檢查是否按下右方向鍵或 D 鍵（答題中暫停移動）
     direction += 1; // 設定角色向右移動
   } // 結束右移輸入判斷
-  const jumpKeyDown = keyIsDown(87); // 檢查是否按住 W 鍵
-  const downKeyDown = keyIsDown(83); // 檢查是否按住 S 鍵
-  const aKeyDown = keyIsDown(65); // 檢查是否按住 A 鍵
-  const dKeyDown = keyIsDown(68); // 檢查是否按住 D 鍵
-  const forwardKeyDown = keyIsDown(facingDirection > 0 ? 68 : 65); // 依角色面向判斷前方向鍵
-  const uKeyDown = keyIsDown(85); // 檢查是否按下 U 鍵（輕拳）
-  const iKeyDown = keyIsDown(73); // 檢查是否按下 I 鍵（中拳）
-  const oKeyDown = keyIsDown(79); // 檢查是否按下 O 鍵（重拳）
-  const jKeyDown = keyIsDown(74); // 檢查是否按下 J 鍵（輕踢）
-  const kKeyDown = keyIsDown(75); // 檢查是否按下 K 鍵（中踢）
-  const lKeyDown = keyIsDown(76); // 檢查是否按下 L 鍵（重踢）
+  const jumpKeyDown = !isQuizOpen && keyIsDown(87); // 檢查是否按住 W 鍵（答題中暫停跳躍）
+  const downKeyDown = !isQuizOpen && keyIsDown(83); // 檢查是否按住 S 鍵
+  const aKeyDown = !isQuizOpen && keyIsDown(65); // 檢查是否按住 A 鍵
+  const dKeyDown = !isQuizOpen && keyIsDown(68); // 檢查是否按住 D 鍵
+  const forwardKeyDown = !isQuizOpen && keyIsDown(facingDirection > 0 ? 68 : 65); // 依角色面向判斷前方向鍵
+  const uKeyDown = !isQuizOpen && keyIsDown(85); // 檢查是否按下 U 鍵（輕拳）
+  const iKeyDown = !isQuizOpen && keyIsDown(73); // 檢查是否按下 I 鍵（中拳）
+  const oKeyDown = !isQuizOpen && keyIsDown(79); // 檢查是否按下 O 鍵（重拳）
+  const jKeyDown = !isQuizOpen && keyIsDown(74); // 檢查是否按下 J 鍵（輕踢）
+  const kKeyDown = !isQuizOpen && keyIsDown(75); // 檢查是否按下 K 鍵（中踢）
+  const lKeyDown = !isQuizOpen && keyIsDown(76); // 檢查是否按下 L 鍵（重踢）
   const punchPressed = (uKeyDown && !wasUKeyDown) || (iKeyDown && !wasIKeyDown) || (oKeyDown && !wasOKeyDown); // 檢查本畫格是否新按下任一拳鍵
   const kickPressed = (jKeyDown && !wasJKeyDown) || (kKeyDown && !wasKKeyDown) || (lKeyDown && !wasLKeyDown); // 檢查本畫格是否新按下任一踢鍵
   const busyWithGroundSpecial = isAttacking || isShoryuken || isSenfukyaku || isLightningLeg; // 檢查是否正在執行特殊必殺技
@@ -754,6 +1100,7 @@ function draw() { // 每個畫格更新角色並繪製畫面
     image(projectileImage, 0, 0, projectileImage.width * projectileScale, projectileImage.height * projectileScale); // 繪製氣功彈
     pop(); // 還原繪圖狀態
   } // 結束氣功彈繪製
+  updateAndDrawGuile(actualBgScroll); // 更新並繪製場景中的 Guile NPC、靠近提問觸發與反應動作
   const isMovingForward = direction !== 0 && direction === facingDirection; // 判斷是否正朝面向方向前進
   const isMovingBackward = direction !== 0 && direction !== facingDirection; // 判斷是否正朝反方向後退
   const activeIdleFrames = currentCharacter === "chunli" ? chunliIdleFrames : idleFrames; // 取得目前角色站立影格
@@ -813,6 +1160,7 @@ function draw() { // 每個畫格更新角色並繪製畫面
     } // 結束特效是否離開畫面判斷
   } // 結束右端特效更新与繪製
   drawCharacterSelector(); // 在畫面上方繪製角色頭像切換 UI
+  drawGuileQuizUI(); // 在畫面上層繪製 Guile 選擇題視窗或答題結果提示橫幅
 } // 結束每畫格更新與繪製
 
 function removeBlueBackground(frames) { // 將角色影格的藍色底色設為透明
